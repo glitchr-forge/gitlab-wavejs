@@ -1,0 +1,17 @@
+y{
+  "name": "@glitchr/wavejs",
+  "version": "1.0.3",
+  "description": "Wave JS",
+  "main": "index.js",
+  "repository": {
+    "url": "ssh://git@gitlab.glitchr.dev:public-repository/javascript/wavejs.git",
+    "type": "git"
+  },
+  "dependencies": {
+  },
+  "author": "Marco Meyer <marco.meyer@glitchr.io>",
+  "license": "LGPL-3.0-or-later",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
