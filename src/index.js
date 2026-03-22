@@ -3,27 +3,17 @@ import breakpoint from '@glitchr/breakpoints';
 (function(){
 	"use strict";
 
-	var canvas,context;
-	var waves = [];
-	var colours = ["#fff3","#fff9","#ffff"]
-	var fps = 12;
+	let canvas,context;
+	let waves = [];
+	const colours = ["#fff3","#fff9","#ffff"]
+	const fps = 12;
 
-	if(breakpoint.startsWith("mobile") || breakpoint.startsWith("tablet")) {
-
-		var lines = false;
-		var lambda = 0.4;
-		var nodes = 10;
-		var waveHeight = 20;
-		var nwaves = 3;
-
-	} else {
-
-		var lines = false;
-		var lambda = 0.4;
-		var nodes = 20;
-		var waveHeight = 15;
-		var nwaves = 3;
-	}
+	const isMobile = breakpoint.startsWith("mobile") || breakpoint.startsWith("tablet");
+	const lines = false;
+	const lambda = 0.4;
+	const nodes = isMobile ? 10 : 20;
+	const waveHeight = isMobile ? 20 : 15;
+	const nwaves = 3;
 
 	function init() {
 
@@ -34,14 +24,14 @@ import breakpoint from '@glitchr/breakpoints';
 		resizeCanvas(canvas);
 
 		waves = [];
-		for (var i = 0; i < nwaves; i++)
+		for (let i = 0; i < nwaves; i++)
 			new Wave(colours[i],lambda,nodes);
 	}
 
-	var fpsInterval, startTime, now, then, elapsed;
+	let fpsInterval, startTime, now, then, elapsed;
 	function animate(_fps) {
 
-		if(_fps != null) {
+		if(_fps !== null) {
 
 			fpsInterval = 1000 / _fps;
 			then = Date.now();
@@ -67,7 +57,7 @@ import breakpoint from '@glitchr/breakpoints';
 			update();
 		}
 	}
-			
+
 	function update() {
 
 		if(!canvas) return;
@@ -76,9 +66,9 @@ import breakpoint from '@glitchr/breakpoints';
 		context.globalCompositeOperation = "source-over";
 		context.globalCompositeOperation = "screen";
 
-		for (var i = 0; i < waves.length; i++) {
+		for (let i = 0; i < waves.length; i++) {
 
-			for (var j = 0; j < waves[i].nodes.length; j++)
+			for (let j = 0; j < waves[i].nodes.length; j++)
 				bounce(waves[i].nodes[j]);
 
 			drawWave(waves[i]);
@@ -97,9 +87,9 @@ import breakpoint from '@glitchr/breakpoints';
 		this.lambda = lambda;
 		this.nodes = [];
 
-		for (var i = 0; i <= nodes+2; i++) {
+		for (let i = 0; i <= nodes+2; i++) {
 
-			var temp = [(i-1)*canvas.width/nodes,0,Math.random()*200,lambda];
+			const temp = [(i-1)*canvas.width/nodes,0,Math.random()*200,lambda];
 			this.nodes.push(temp);
 		}
 
@@ -112,14 +102,14 @@ import breakpoint from '@glitchr/breakpoints';
 	}
 
 	function drawWave (obj) {
-		var diff = function(a,b) {
+		const diff = function(a,b) {
 			return (b - a)/2 + a;
 		}
 		context.fillStyle = obj.colour;
 		context.beginPath();
 		context.moveTo(0,canvas.height);
 		context.lineTo(obj.nodes[0][0],obj.nodes[0][1]);
-		for (var i = 0; i < obj.nodes.length; i++) {
+		for (let i = 0; i < obj.nodes.length; i++) {
 			if (obj.nodes[i+1]) {
 				context.quadraticCurveTo(
 					obj.nodes[i][0],obj.nodes[i][1],
@@ -136,7 +126,7 @@ import breakpoint from '@glitchr/breakpoints';
 
 	function drawNodes (array) {
 		context.strokeStyle = "#888";
-		for (var i = 0; i < array.length; i++) {
+		for (let i = 0; i < array.length; i++) {
 			context.beginPath();
 			context.arc(array[i][0],array[i][1],4,0,2*Math.PI);
 			context.closePath();
@@ -146,12 +136,12 @@ import breakpoint from '@glitchr/breakpoints';
 
 	function drawLine (array) {
 		context.strokeStyle = "#888";
-		for (var i = 0; i < array.length; i++) {
+		for (let i = 0; i < array.length; i++) {
 			if (array[i+1]) {
 				context.lineTo(array[i+1][0],array[i+1][1]);
 			}
 		}
-			context.stroke();
+		context.stroke();
 	}
 
 	function resizeCanvas(canvas,width,height) {
