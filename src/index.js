@@ -15,35 +15,93 @@ import breakpoint from '@glitchr/breakpoints';
 	const waveHeight = isMobile ? 20 : 15;
 	const nwaves = 3;
 
+	// ── Scheduling state ──────────────────────────────────────────────────
+	// rafId doubles as "is the loop running": null means parked, and nothing
+	// is scheduled, so a parked loop costs exactly zero per frame.
+	let rafId = null;
+	let initQueued = false;
+	let onScreen = true;
+	let observer = null;
+
 	function init() {
 
-		canvas = document.getElementById("waves");
-		if(!canvas) return;
+		initQueued = false;
 
+		const next = document.getElementById("waves");
+
+		// The canvas can legitimately disappear: this is loaded once per tab,
+		// but the host site swaps pages under it, and not every page has a
+		// footer wave. Park the loop rather than spinning on a dead context.
+		if(!next) { canvas = null; context = null; return stop(); }
+
+		canvas = next;
 		context = canvas.getContext("2d");
 		resizeCanvas(canvas);
 
 		waves = [];
 		for (let i = 0; i < nwaves; i++)
 			new Wave(colours[i],lambda,nodes);
+
+		observe();
+		start();
 	}
 
-	let fpsInterval, startTime, now, then, elapsed;
-	function animate(_fps) {
+	// Coalesces the several events that all mean "re-init" into one init on the
+	// next frame, so a burst cannot run the Wave rebuild several times over.
+	//
+	// Note this deferral alone does NOT make the layout read below free:
+	// requestAnimationFrame callbacks run BEFORE the frame's style and layout
+	// pass, so a layout-forcing read inside one still forces a synchronous
+	// layout. That is what measuredWidth() is for.
+	function queueInit() {
 
-		if(_fps !== null) {
+		if(initQueued) return;
+		initQueued = true;
+		requestAnimationFrame(init);
+	}
 
-			fpsInterval = 1000 / _fps;
-			then = Date.now();
-			startTime = then;
-			return play();
-		}
+	// Decorative and off-screen for most of a long page's scroll. Nothing is
+	// gained by compositing a canvas nobody can see, so only run while it
+	// actually intersects the viewport.
+	function observe() {
+
+		if(typeof IntersectionObserver === "undefined") return;
+		if(observer) observer.disconnect();
+
+		observer = new IntersectionObserver(function(entries) {
+
+			onScreen = entries[entries.length-1].isIntersecting;
+			if(onScreen) start();
+			else stop();
+
+		}, {rootMargin: "100px"});
+
+		observer.observe(canvas);
+	}
+
+	let fpsInterval = 1000 / fps, now, then, elapsed;
+
+	function start() {
+
+		if(rafId !== null) return;              // already running
+		if(!canvas || !onScreen) return;
+		if(document.visibilityState === "hidden") return;
+
+		then = Date.now();
+		rafId = requestAnimationFrame(play);
+	}
+
+	function stop() {
+
+		if(rafId === null) return;
+		cancelAnimationFrame(rafId);
+		rafId = null;
 	}
 
 	function play() {
 
 		// request another frame
-		requestAnimationFrame(play);
+		rafId = requestAnimationFrame(play);
 
 		// calc elapsed time since last loop
 		now = Date.now();
@@ -63,13 +121,21 @@ import breakpoint from '@glitchr/breakpoints';
 		if(!canvas) return;
 
 		context.clearRect(0, 0, canvas.width, canvas.height);
-		context.globalCompositeOperation = "source-over";
+
+		// "screen" is what makes the three stacked waves lighten where they
+		// overlap. The previous "source-over" immediately before it was dead
+		// (overwritten on the next line), as was the trailing "hue" at the end
+		// of this function - it was set after the last draw call and reset
+		// before the next one, so it tinted nothing, while leaving the context
+		// parked in a non-separable blend mode between every frame.
 		context.globalCompositeOperation = "screen";
+
+		const mid = canvas.height / 2;
 
 		for (let i = 0; i < waves.length; i++) {
 
 			for (let j = 0; j < waves[i].nodes.length; j++)
-				bounce(waves[i].nodes[j]);
+				bounce(waves[i].nodes[j], mid);
 
 			drawWave(waves[i]);
 			if(lines) {
@@ -77,8 +143,6 @@ import breakpoint from '@glitchr/breakpoints';
 				drawNodes(waves[i].nodes);
 			}
 		}
-
-		context.globalCompositeOperation = "hue";
 	}
 
 	function Wave(colour,lambda,nodes) {
@@ -96,8 +160,8 @@ import breakpoint from '@glitchr/breakpoints';
 		waves.push(this);
 	}
 
-	function bounce(node) {
-		node[1] = waveHeight/2*Math.sin(node[2]/20)+canvas.height/2;
+	function bounce(node, mid) {
+		node[1] = waveHeight/2*Math.sin(node[2]/20)+mid;
 		node[2] = node[2] + node[3];
 	}
 
@@ -144,22 +208,52 @@ import breakpoint from '@glitchr/breakpoints';
 		context.stroke();
 	}
 
+	// document.body.clientWidth forces a synchronous layout, and during a page
+	// swap that is a layout of the entire freshly-inserted document - which is
+	// what made this one read the most expensive JS in the swap window (~24ms
+	// on prod). A swap cannot change the viewport width, so measure once and
+	// reuse it; only the events that genuinely resize the viewport drop the
+	// cached value. WRITING canvas.width is free - only reading forces layout.
+	//
+	// body.clientWidth rather than window.innerWidth is deliberate and
+	// load-bearing: it excludes the scrollbar (the "windows scrollbar issue"
+	// the init() call below refers to).
+	let viewportWidth = null;
+	function measuredWidth() {
+
+		if(viewportWidth === null) viewportWidth = document.body.clientWidth;
+		return viewportWidth;
+	}
+
 	function resizeCanvas(canvas,width,height) {
 		if (width && height) {
 			canvas.width = width;
 			canvas.height = height;
 		} else {
-			canvas.width = document.body.clientWidth;
+			canvas.width = measuredWidth();
 			canvas.height = 120/100 * waveHeight;
 		}
 	}
 
-	document.addEventListener("DOMContentLoaded", init, true);
+	document.addEventListener("DOMContentLoaded", queueInit, true);
 
 	init(); // Avoid windows scrollbar issue..
-	animate(fps);
 
-	window.addEventListener("load", function() { init(); });
-	window.addEventListener("resize", function() { init(); });
-	window.addEventListener("orientationchange", function() { init(); });
+	window.addEventListener("load", queueInit);
+
+	// resize and orientationchange both fire in bursts - a window drag emits
+	// them continuously - and each one used to run a full init(): a forced
+	// layout plus three Wave objects rebuilt from scratch. queueInit collapses
+	// a whole burst into one init on the next frame.
+	function invalidateWidth() { viewportWidth = null; queueInit(); }
+	window.addEventListener("resize", invalidateWidth);
+	window.addEventListener("orientationchange", invalidateWidth);
+
+	// A backgrounded tab throttles rAF but the loop still exists; parking it
+	// outright also guarantees `then` is re-based on return, so the first frame
+	// back does not see a huge elapsed value.
+	document.addEventListener("visibilitychange", function() {
+		if(document.visibilityState === "hidden") stop();
+		else start();
+	});
 })();
