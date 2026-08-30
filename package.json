@@ -1,6 +1,6 @@
 {
   "name": "@glitchr/wavejs",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Wave JS",
   "main": "src/index.js",
   "repository": {
