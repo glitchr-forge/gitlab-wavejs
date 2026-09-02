@@ -6,7 +6,10 @@ import breakpoint from '@glitchr/breakpoints';
 	let canvas,context;
 	let waves = [];
 	const colours = ["#fff3","#fff9","#ffff"]
-	const fps = 12;
+	// The rate the wave motion was originally tuned at. It is no longer a
+	// frame-rate cap - the loop runs at the display's rate - only the scale
+	// that keeps the animation's SPEED identical to what it always was.
+	const AUTHORED_FRAME_MS = 1000 / 12;
 
 	const isMobile = breakpoint.startsWith("mobile") || breakpoint.startsWith("tablet");
 	const lines = false;
@@ -79,7 +82,7 @@ import breakpoint from '@glitchr/breakpoints';
 		observer.observe(canvas);
 	}
 
-	let fpsInterval = 1000 / fps, now, then, elapsed;
+	let now, then;
 
 	function start() {
 
@@ -103,20 +106,31 @@ import breakpoint from '@glitchr/breakpoints';
 		// request another frame
 		rafId = requestAnimationFrame(play);
 
-		// calc elapsed time since last loop
 		now = Date.now();
-		elapsed = now - then;
+		let dt = now - then;
+		then = now;
 
-		// if enough time has elapsed, draw the next frame
+		// A long task, or a tab that was parked and resumed, must not
+		// teleport the wave forward by however long we were away. Clamp to
+		// ~3 frames' worth: the motion is decorative and continuous, so a
+		// stall is better hidden than replayed.
+		if (dt > 50) dt = 50;
 
-		if (elapsed > fpsInterval) {
-
-			then = now - (elapsed % fpsInterval);
-			update();
-		}
+		// Phase advances with TIME, not with frames. `bounce` used to do
+		// `node[2] += node[3]` once per rendered frame, which bolted the
+		// wave's speed to the frame rate - the only reason this ran at 12fps
+		// was that the motion had been tuned at 12fps, and raising it simply
+		// made the waves move five times faster. It was never a cost
+		// decision: the whole frame is 60 nodes, one Math.sin each, drawn on
+		// a strip a couple of dozen pixels tall.
+		//
+		// Dividing by the interval it was authored at keeps the speed
+		// identical to before while letting the loop run at whatever rate
+		// the display offers.
+		update(dt / AUTHORED_FRAME_MS);
 	}
 
-	function update() {
+	function update(step) {
 
 		if(!canvas) return;
 
@@ -135,7 +149,7 @@ import breakpoint from '@glitchr/breakpoints';
 		for (let i = 0; i < waves.length; i++) {
 
 			for (let j = 0; j < waves[i].nodes.length; j++)
-				bounce(waves[i].nodes[j], mid);
+				bounce(waves[i].nodes[j], mid, step);
 
 			drawWave(waves[i]);
 			if(lines) {
@@ -160,9 +174,9 @@ import breakpoint from '@glitchr/breakpoints';
 		waves.push(this);
 	}
 
-	function bounce(node, mid) {
+	function bounce(node, mid, step) {
 		node[1] = waveHeight/2*Math.sin(node[2]/20)+mid;
-		node[2] = node[2] + node[3];
+		node[2] = node[2] + node[3] * step;
 	}
 
 	function drawWave (obj) {
