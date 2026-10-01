@@ -4,8 +4,8 @@
   "description": "Wave JS",
   "main": "src/index.js",
   "repository": {
-    "url": "ssh://git@gitlab.glitchr.dev:public-repository/javascript/wavejs.git",
-    "type": "git"
+    "type": "git",
+    "url": "git+https://github.com/glitchr-studio/wavejs.git"
   },
   "dependencies": {
     "@glitchr/breakpoints": "^1.0"
